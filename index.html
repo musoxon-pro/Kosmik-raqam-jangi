@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kometa Raqam Jangi - Dynamic Difficulty</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        
+        body {
+            background: #02050c;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 5px;
+            touch-action: none;
+        }
+        
+        #gameContainer {
+            text-align: center;
+            position: relative;
+            width: 100%;
+            max-width: 420px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            max-height: 100vh;
+        }
+        
+        #gameCanvas {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 400 / 600;
+            border: 2px solid #3f68a0;
+            border-radius: 28px;
+            background: #0a1122;
+            box-shadow: 0 0 40px rgba(40, 80, 200, 0.2);
+            display: block;
+            touch-action: none;
+        }
+        
+        #stats-panel {
+            background: #0f1a2f;
+            border-radius: 60px;
+            padding: 10px 12px;
+            margin: 6px 0;
+            border: 1px solid #2f5f9f;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 5px;
+            color: white;
+            box-shadow: 0 4px 0 #040814;
+            flex-shrink: 0;
+        }
+        
+        .stat-block {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .stat-label {
+            font-size: 9px;
+            color: #8fafdf;
+            margin-bottom: 2px;
+            white-space: nowrap;
+        }
+        
+        .stat-value {
+            font-size: 16px;
+            font-weight: bold;
+            text-shadow: 0 0 8px currentColor;
+        }
+        
+        #scoreValue { color: #ffd966; }
+        #levelValue { color: #6fcf97; }
+        #missValue { color: #ff7f7f; }
+        #buffsCount { color: #bb8fcf; }
+        
+        #topBar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+            color: #b0c4ff;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+        
+        #languageBtn, #donateBtn {
+            background: #1e2a40;
+            border: 1px solid #4f7fcf;
+            border-radius: 30px;
+            padding: 4px 8px;
+            font-size: 12px;
+            color: white;
+            cursor: pointer;
+            touch-action: manipulation;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        #languageBtn:active, #donateBtn:active {
+            background: #2f3f6f;
+        }
+        
+        #languagePanel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #0f1a2f;
+            border: 2px solid #4f7fcf;
+            border-radius: 30px;
+            padding: 15px;
+            display: none;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            z-index: 10;
+            width: 90%;
+            max-width: 300px;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+        
+        .lang-btn {
+            background: #1e2a40;
+            border: 1px solid #5a7fc0;
+            border-radius: 40px;
+            padding: 10px 5px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            touch-action: manipulation;
+            text-align: center;
+        }
+        
+        .lang-btn.active {
+            background: #4f7fcf;
+            border-color: #ffaa00;
+            box-shadow: 0 0 15px #ffaa00;
+        }
+        
+        .lang-btn:active {
+            background: #2f5a9f;
+        }
+        
+        #closeLang {
+            grid-column: span 2;
+            background: #b84a4a;
+            border: 1px solid #ff7f7f;
+        }
+        
+        /* ==================== BUFFS CONTAINER - HORIZONTAL SCROLL ==================== */
+        #buffsContainer {
+            background: #1a2640;
+            border-radius: 40px;
+            padding: 8px 12px;
+            margin-top: 6px;
+            border: 1px solid #6f8fd0;
+            color: #d0e4ff;
+            font-size: 13px;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: #4f7fcf #0f1a2f;
+            gap: 8px;
+            align-items: center;
+            min-height: 52px;
+            max-height: 52px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        /* Custom scrollbar for webkit */
+        #buffsContainer::-webkit-scrollbar {
+            height: 4px;
+        }
+        #buffsContainer::-webkit-scrollbar-track {
+            background: #0f1a2f;
+            border-radius: 10px;
+        }
+        #buffsContainer::-webkit-scrollbar-thumb {
+            background: #4f7fcf;
+            border-radius: 10px;
+        }
+        
+        .buff-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #0f1a2f;
+            padding: 4px 10px;
+            border-radius: 30px;
+            border: 1px solid #5a7fc0;
+            font-size: 13px;
+            flex-shrink: 0;
+            box-shadow: 0 2px 0 #030614;
+        }
+        
+        .buff-item .count {
+            background: #ffaa00;
+            color: #000;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 11px;
+            margin-left: 2px;
+        }
+        
+        .buff-item.max-stack {
+            border-color: #ff5500;
+            background: #2a1a0f;
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(8, 16, 32, 0.98);
+            border: 3px solid #bf4f4f;
+            border-radius: 40px;
+            padding: 25px 15px;
+            color: white;
+            display: none;
+            backdrop-filter: blur(5px);
+            width: 90%;
+            max-width: 300px;
+            box-shadow: 0 0 80px rgba(180, 60, 60, 0.4);
+            z-index: 20;
+        }
+        
+        #gameOver h2 {
+            font-size: 28px;
+            margin-bottom: 15px;
+            color: #ff7f7f;
+        }
+        
+        #gameOver p {
+            font-size: 16px;
+            margin: 8px 0;
+        }
+        
+        #restartBtn {
+            background: #4f7fcf;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            font-size: 18px;
+            border-radius: 60px;
+            margin-top: 20px;
+            border: 2px solid #8fb7ff;
+            font-weight: bold;
+            width: 100%;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="topBar">
+            <button id="languageBtn">🌐 Til</button>
+            <span>✨ Kometa Raqam Jangi</span>
+            <button id="donateBtn">☕ Kofe</button>
+        </div>
+        
+        <div id="stats-panel">
+            <div class="stat-block">
+                <span class="stat-label" id="scoreLabel">BALL</span>
+                <span class="stat-value" id="scoreValue">0</span>
+            </div>
+            <div class="stat-block">
+                <span class="stat-label" id="levelLabel">DARAJA</span>
+                <span class="stat-value" id="levelValue">1</span>
+            </div>
+            <div class="stat-block">
+                <span class="stat-label" id="missLabel">O'TKAZIB</span>
+                <span class="stat-value" id="missValue">0/10</span>
+            </div>
+            <div class="stat-block">
+                <span class="stat-label" id="buffsLabel">BUFFLAR</span>
+                <span class="stat-value" id="buffsCount">0</span>
+            </div>
+        </div>
+        
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        
+        <div id="buffsContainer"></div>
+        
+        <div id="languagePanel">
+            <div class="lang-btn" data-lang="uz">O'zbek</div>
+            <div class="lang-btn" data-lang="en">English</div>
+            <div class="lang-btn" data-lang="ru">Русский</div>
+            <div class="lang-btn" data-lang="tr">Türkçe</div>
+            <div class="lang-btn" data-lang="zh">中文</div>
+            <div class="lang-btn" data-lang="ja">日本語</div>
+            <div class="lang-btn" data-lang="ko">한국어</div>
+            <div class="lang-btn" data-lang="ar">العربية</div>
+            <div class="lang-btn" data-lang="es">Español</div>
+            <div class="lang-btn" data-lang="it">Italiano</div>
+            <div class="lang-btn" data-lang="de">Deutsch</div>
+            <button id="closeLang" class="lang-btn">Yopish</button>
+        </div>
+        
+        <div id="gameOver">
+            <h2>O'yin Tugadi</h2>
+            <p>💥 Kometalar: <span id="finalKills">0</span></p>
+            <p>🔢 Maks daraja: <span id="finalLevel">1</span></p>
+            <p>⭐ Umumiy ball: <span id="finalScore">0</span></p>
+            <p>🏆 Rekord ball: <span id="highScore">0</span></p>
+            <button id="restartBtn">Yangi o'yin</button>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // ==================== 11 TIL TO'LIQ ====================
+            const translations = {
+                uz: {
+                    score: "BALL",
+                    level: "DARAJA",
+                    miss: "O'TKAZIB",
+                    buffs: "BUFFLAR",
+                    noBuffs: "Bufflar yo'q",
+                    gameOver: "O'yin Tugadi",
+                    kills: "Kometalar",
+                    maxLevel: "Maks daraja",
+                    totalScore: "Umumiy ball",
+                    record: "Rekord ball",
+                    restart: "Yangi o'yin",
+                    language: "Til",
+                    donate: "Kofe",
+                    close: "Yopish",
+                    missed: "O'tkazib yuborildi",
+                    doubleDamage: "2x Zarar",
+                    tripleDamage: "3x Zarar",
+                    rapidFire: "Tez otish",
+                    shield: "Himoya",
+                    spreadShot: "Yoyilma",
+                    slowTime: "Sekin vaqt"
+                },
+                en: {
+                    score: "SCORE",
+                    level: "LEVEL",
+                    miss: "MISSED",
+                    buffs: "BUFFS",
+                    noBuffs: "No buffs",
+                    gameOver: "Game Over",
+                    kills: "Comets",
+                    maxLevel: "Max level",
+                    totalScore: "Total score",
+                    record: "High score",
+                    restart: "Restart",
+                    language: "Language",
+                    donate: "Donate",
+                    close: "Close",
+                    missed: "Missed",
+                    doubleDamage: "2x Damage",
+                    tripleDamage: "3x Damage",
+                    rapidFire: "Rapid Fire",
+                    shield: "Shield",
+                    spreadShot: "Spread Shot",
+                    slowTime: "Slow Time"
+                },
+                ru: {
+                    score: "СЧЁТ",
+                    level: "УРОВЕНЬ",
+                    miss: "ПРОПУЩЕНО",
+                    buffs: "БАФФЫ",
+                    noBuffs: "Нет баффов",
+                    gameOver: "Игра Окончена",
+                    kills: "Кометы",
+                    maxLevel: "Макс. уровень",
+                    totalScore: "Общий счёт",
+                    record: "Рекорд",
+                    restart: "Заново",
+                    language: "Язык",
+                    donate: "Донат",
+                    close: "Закрыть",
+                    missed: "Пропущено",
+                    doubleDamage: "2x Урон",
+                    tripleDamage: "3x Урон",
+                    rapidFire: "Быстрая стрельба",
+                    shield: "Щит",
+                    spreadShot: "Веерный огонь",
+                    slowTime: "Замедление"
+                },
+                tr: {
+                    score: "PUAN",
+                    level: "SEVİYE",
+                    miss: "KAÇIRILAN",
+                    buffs: "GÜÇLENDİRMELER",
+                    noBuffs: "Güçlendirme yok",
+                    gameOver: "Oyun Bitti",
+                    kills: "Kuyruklu yıldız",
+                    maxLevel: "Maks seviye",
+                    totalScore: "Toplam puan",
+                    record: "Rekor",
+                    restart: "Yeniden başlat",
+                    language: "Dil",
+                    donate: "Bağış",
+                    close: "Kapat",
+                    missed: "Kaçırıldı",
+                    doubleDamage: "2x Hasar",
+                    tripleDamage: "3x Hasar",
+                    rapidFire: "Hızlı ateş",
+                    shield: "Kalkan",
+                    spreadShot: "Saçma atış",
+                    slowTime: "Yavaş zaman"
+                },
+                zh: {
+                    score: "分数",
+                    level: "等级",
+                    miss: "错过",
+                    buffs: "增益",
+                    noBuffs: "无增益",
+                    gameOver: "游戏结束",
+                    kills: "彗星",
+                    maxLevel: "最大等级",
+                    totalScore: "总分",
+                    record: "最高分",
+                    restart: "重新开始",
+                    language: "语言",
+                    donate: "捐赠",
+                    close: "关闭",
+                    missed: "错过",
+                    doubleDamage: "双倍伤害",
+                    tripleDamage: "三倍伤害",
+                    rapidFire: "快速射击",
+                    shield: "护盾",
+                    spreadShot: "散弹",
+                    slowTime: "减速"
+                },
+                ja: {
+                    score: "スコア",
+                    level: "レベル",
+                    miss: "ミス",
+                    buffs: "バフ",
+                    noBuffs: "バフなし",
+                    gameOver: "ゲームオーバー",
+                    kills: "彗星",
+                    maxLevel: "最大レベル",
+                    totalScore: "合計スコア",
+                    record: "ハイスコア",
+                    restart: "再開",
+                    language: "言語",
+                    donate: "寄付",
+                    close: "閉じる",
+                    missed: "ミス",
+                    doubleDamage: "2倍ダメージ",
+                    tripleDamage: "3倍ダメージ",
+                    rapidFire: "高速射撃",
+                    shield: "シールド",
+                    spreadShot: "拡散弾",
+                    slowTime: "スロー"
+                },
+                ko: {
+                    score: "점수",
+                    level: "레벨",
+                    miss: "놓침",
+                    buffs: "버프",
+                    noBuffs: "버프 없음",
+                    gameOver: "게임 오버",
+                    kills: "혜성",
+                    maxLevel: "최대 레벨",
+                    totalScore: "총점",
+                    record: "최고 기록",
+                    restart: "다시 시작",
+                    language: "언어",
+                    donate: "기부",
+                    close: "닫기",
+                    missed: "놓침",
+                    doubleDamage: "2배 피해",
+                    tripleDamage: "3배 피해",
+                    rapidFire: "속사",
+                    shield: "방패",
+                    spreadShot: "확산 사격",
+                    slowTime: "시간 지연"
+                },
+                ar: {
+                    score: "النقاط",
+                    level: "المستوى",
+                    miss: "الفائت",
+                    buffs: "تعزيزات",
+                    noBuffs: "لا توجد تعزيزات",
+                    gameOver: "انتهت اللعبة",
+                    kills: "المذنبات",
+                    maxLevel: "أقصى مستوى",
+                    totalScore: "المجموع",
+                    record: "رقم قياسي",
+                    restart: "إعادة بدء",
+                    language: "اللغة",
+                    donate: "تبرع",
+                    close: "إغلاق",
+                    missed: "فائت",
+                    doubleDamage: "ضعف الضرر",
+                    tripleDamage: "ثلاثة أضعاف الضرر",
+                    rapidFire: "إطلاق سريع",
+                    shield: "درع",
+                    spreadShot: "طلقة منتشرة",
+                    slowTime: "تبطيء الوقت"
+                },
+                es: {
+                    score: "PUNTUACIÓN",
+                    level: "NIVEL",
+                    miss: "FALLADO",
+                    buffs: "MEJORAS",
+                    noBuffs: "Sin mejoras",
+                    gameOver: "Juego Terminado",
+                    kills: "Cometas",
+                    maxLevel: "Nivel máximo",
+                    totalScore: "Puntuación total",
+                    record: "Récord",
+                    restart: "Reiniciar",
+                    language: "Idioma",
+                    donate: "Donar",
+                    close: "Cerrar",
+                    missed: "Fallado",
+                    doubleDamage: "2x Daño",
+                    tripleDamage: "3x Daño",
+                    rapidFire: "Disparo rápido",
+                    shield: "Escudo",
+                    spreadShot: "Disparo disperso",
+                    slowTime: "Tiempo lento"
+                },
+                it: {
+                    score: "PUNTEGGIO",
+                    level: "LIVELLO",
+                    miss: "PERSO",
+                    buffs: "POTENZIAMENTI",
+                    noBuffs: "Nessun potenziamento",
+                    gameOver: "Gioco Finito",
+                    kills: "Comete",
+                    maxLevel: "Livello massimo",
+                    totalScore: "Punteggio totale",
+                    record: "Record",
+                    restart: "Ricomincia",
+                    language: "Lingua",
+                    donate: "Dona",
+                    close: "Chiudi",
+                    missed: "Perso",
+                    doubleDamage: "2x Danno",
+                    tripleDamage: "3x Danno",
+                    rapidFire: "Fuoco rapido",
+                    shield: "Scudo",
+                    spreadShot: "Colpo disperso",
+                    slowTime: "Rallentamento"
+                },
+                de: {
+                    score: "PUNKTZAHL",
+                    level: "STUFE",
+                    miss: "VERFEHLT",
+                    buffs: "VERSTÄRKUNGEN",
+                    noBuffs: "Keine Verstärkungen",
+                    gameOver: "Spiel vorbei",
+                    kills: "Kometen",
+                    maxLevel: "Max. Stufe",
+                    totalScore: "Gesamtpunktzahl",
+                    record: "Rekord",
+                    restart: "Neustart",
+                    language: "Sprache",
+                    donate: "Spenden",
+                    close: "Schließen",
+                    missed: "Verfehlt",
+                    doubleDamage: "2x Schaden",
+                    tripleDamage: "3x Schaden",
+                    rapidFire: "Schnellfeuer",
+                    shield: "Schild",
+                    spreadShot: "Streuschuss",
+                    slowTime: "Zeitlupe"
+                }
+            };
+
+            // Til sozlamalari
+            function getSystemLanguage() {
+                const lang = navigator.language || navigator.userLanguage;
+                if (lang.startsWith('uz')) return 'uz';
+                if (lang.startsWith('ru')) return 'ru';
+                if (lang.startsWith('tr')) return 'tr';
+                if (lang.startsWith('zh')) return 'zh';
+                if (lang.startsWith('ja')) return 'ja';
+                if (lang.startsWith('ko')) return 'ko';
+                if (lang.startsWith('ar')) return 'ar';
+                if (lang.startsWith('es')) return 'es';
+                if (lang.startsWith('it')) return 'it';
+                if (lang.startsWith('de')) return 'de';
+                return 'uz';
+            }
+
+            let currentLang = localStorage.getItem('selectedLang') || getSystemLanguage();
+
+            function __(key) {
+                return translations[currentLang]?.[key] || translations.uz[key] || key;
+            }
+
+            // ==================== O'YIN O'ZGARUVCHILARI ====================
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            let gameRunning = true;
+            let score = 0;
+            let kills = 0;
+            let currentLevel = 1;
+            let missedComets = 0;
+            let maxMissed = 10; // Dinamik oshib boradi
+            
+            // Buff stacking cheklovi
+            const MAX_BUFF_STACK = 30;
+            
+            let buffStacks = {
+                doubleDamage: 0,
+                tripleDamage: 0,
+                rapidFire: 0,
+                shield: 0,
+                spreadShot: 0,
+                slowTime: 0
+            };
+            
+            const buffIcons = {
+                doubleDamage: '💥',
+                tripleDamage: '💢',
+                rapidFire: '⚡',
+                shield: '🛡️',
+                spreadShot: '🔫',
+                slowTime: '⏱️'
+            };
+            
+            let player = {
+                x: canvas.width / 2,
+                y: canvas.height - 65,
+                width: 40,
+                height: 32
+            };
+
+            let bullets = [];
+            let targets = [];
+            let particles = [];
+            
+            const bulletSpeed = 8;
+            let lastShot = 0;
+            const baseRadius = 24;
+            const baseSpeed = 1.2;
+            let spawnInterval = 1000;
+            let lastSpawn = 0;
+            
+            // Qiyinchilik ko'rsatkichi (faqat ichki)
+            let difficultyMultiplier = 1.0;
+            
+            let stars = [];
+            for (let i = 0; i < 25; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 1.5 + 0.5,
+                    speed: Math.random() * 0.2 + 0.1,
+                    alpha: Math.random() * 0.2 + 0.1
+                });
+            }
+
+            let touchX = player.x;
+            let touchActive = false;
+            
+            let highScore = localStorage.getItem('highScore') ? parseInt(localStorage.getItem('highScore')) : 0;
+            
+            // UI elementlari
+            const scoreSpan = document.getElementById('scoreValue');
+            const levelSpan = document.getElementById('levelValue');
+            const missSpan = document.getElementById('missValue');
+            const buffsCountSpan = document.getElementById('buffsCount');
+            const buffsContainer = document.getElementById('buffsContainer');
+            
+            // ==================== QIYINCHILIK DINAMIKASI (har 10 darajada) ====================
+            function updateDifficulty() {
+                // Har 10 darajada 0.3x ga oshadi (1.0 + floor(level/10)*0.3)
+                difficultyMultiplier = 1.0 + (Math.floor(currentLevel / 10) * 0.3);
+                difficultyMultiplier = Math.min(3.0, difficultyMultiplier); // Maks 3x
+                
+                // Kometa tezligi (har bir darajada 1% tezlik, lekin asosiy multiplitier bilan)
+                const speedMultiplier = 1.0 + (currentLevel * 0.01); 
+                
+                // Spawn interval (har 10 darajada 8% tezroq)
+                spawnInterval = Math.max(300, 1000 - (Math.floor(currentLevel / 10) * 80));
+                
+                // Maks o'tkazib yuborish (har 10 darajada +1)
+                maxMissed = 10 + Math.floor(currentLevel / 10);
+            }
+            
+            // ==================== BUFF EFFEKTLARI (Stack cheklovi bilan) ====================
+            function getBuffEffect() {
+                return {
+                    damageMultiplier: 1 + Math.min(MAX_BUFF_STACK, buffStacks.doubleDamage) * 1 + Math.min(MAX_BUFF_STACK, buffStacks.tripleDamage) * 2,
+                    shotInterval: Math.max(80, 220 - Math.min(MAX_BUFF_STACK, buffStacks.rapidFire) * 15),
+                    shield: buffStacks.shield > 0,
+                    spreadCount: Math.min(5, buffStacks.spreadShot), // Maks 5 ta yoyilma
+                    slowMultiplier: Math.max(0.3, 1 - Math.min(MAX_BUFF_STACK, buffStacks.slowTime) * 0.1)
+                };
+            }
+
+            // ==================== YORDAMCHI FUNKSIYALAR ====================
+            function createParticle(x, y, text, color) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    text: text,
+                    color: color,
+                    life: 1.0,
+                    vy: -1
+                });
+            }
+
+            // Yangi kometa turlari
+            function createTarget() {
+                const x = Math.random() * (canvas.width - 2 * baseRadius) + baseRadius;
+                const isBuff = Math.random() < 0.09; // 9% buff ehtimoli
+                
+                // Kometa turini aniqlash (qiyinchilikka qarab)
+                const rand = Math.random();
+                let type = 'normal';
+                let healthMultiplier = 1;
+                let speedMultiplier = 1.0 + (currentLevel * 0.01); // Asosiy tezlik
+                
+                if (currentLevel > 10) {
+                    if (rand < 0.1) {
+                        type = 'armored'; // Zirhli - 10% ehtimol
+                        healthMultiplier = 2;
+                    } else if (rand < 0.2) {
+                        type = 'fast'; // Tez - 10% ehtimol
+                        speedMultiplier *= 1.5;
+                    }
+                }
+                
+                let number = Math.floor(Math.random() * (currentLevel + 2)) + 1;
+                number = Math.floor(number * healthMultiplier);
+                
+                const target = {
+                    x: x,
+                    y: -baseRadius,
+                    radius: type === 'fast' ? baseRadius * 0.7 : baseRadius,
+                    speed: baseSpeed * speedMultiplier * difficultyMultiplier,
+                    health: number,
+                    maxHealth: number,
+                    isBuff: isBuff,
+                    type: type,
+                    angle: 0,
+                    rotationSpeed: (Math.random() - 0.5) * 0.03,
+                    hitAnimation: 0
+                };
+                
+                targets.push(target);
+            }
+
+            function addBuff(buffKey) {
+                if (buffStacks[buffKey] !== undefined) {
+                    // Stack cheklovi
+                    if (buffStacks[buffKey] < MAX_BUFF_STACK) {
+                        buffStacks[buffKey]++;
+                        createParticle(player.x, player.y - 30, `${buffIcons[buffKey]}+1`, '#ffaa00');
+                    } else {
+                        createParticle(player.x, player.y - 30, `${buffIcons[buffKey]} MAX`, '#ff5500');
+                    }
+                    updateBuffsDisplay();
+                }
+            }
+
+            function updateBuffsDisplay() {
+                buffsContainer.innerHTML = '';
+                let totalStacks = 0;
+                
+                for (const [key, count] of Object.entries(buffStacks)) {
+                    if (count > 0) {
+                        totalStacks += count;
+                        const div = document.createElement('div');
+                        div.className = 'buff-item';
+                        if (count >= MAX_BUFF_STACK) {
+                            div.classList.add('max-stack');
+                        }
+                        div.innerHTML = `<span>${buffIcons[key]}</span><span>${__(key) || key}</span><span class="count">${count}</span>`;
+                        buffsContainer.appendChild(div);
+                    }
+                }
+                
+                buffsCountSpan.textContent = totalStacks;
+                
+                if (totalStacks === 0) {
+                    buffsContainer.innerHTML = `<div class="buff-item">${__('noBuffs')}</div>`;
+                }
+            }
+
+            function showGameOver() {
+                document.getElementById('finalKills').textContent = kills;
+                document.getElementById('finalLevel').textContent = currentLevel;
+                document.getElementById('finalScore').textContent = score;
+                document.getElementById('highScore').textContent = highScore;
+                document.getElementById('gameOver').style.display = 'block';
+            }
+
+            function restart() {
+                gameRunning = true;
+                score = 0;
+                kills = 0;
+                currentLevel = 1;
+                missedComets = 0;
+                maxMissed = 10;
+                bullets = [];
+                targets = [];
+                particles = [];
+                player.x = canvas.width / 2;
+                
+                for (let key in buffStacks) {
+                    buffStacks[key] = 0;
+                }
+                
+                lastSpawn = 0;
+                updateDifficulty();
+                
+                scoreSpan.textContent = score;
+                levelSpan.textContent = currentLevel;
+                missSpan.textContent = `0/${maxMissed}`;
+                updateBuffsDisplay();
+                document.getElementById('gameOver').style.display = 'none';
+            }
+
+            // Til interfeysini yangilash
+            function updateLanguageUI() {
+                document.getElementById('scoreLabel').textContent = __('score');
+                document.getElementById('levelLabel').textContent = __('level');
+                document.getElementById('missLabel').textContent = __('miss');
+                document.getElementById('buffsLabel').textContent = __('buffs');
+                document.querySelector('#gameOver h2').textContent = __('gameOver');
+                document.getElementById('restartBtn').textContent = __('restart');
+                document.getElementById('languageBtn').innerHTML = `🌐 ${__('language')}`;
+                document.getElementById('donateBtn').innerHTML = `☕ ${__('donate')}`;
+                document.getElementById('closeLang').textContent = __('close');
+                updateBuffsDisplay();
+            }
+
+            // ==================== O'YIN ASOSIY SIKLI ====================
+            function update() {
+                if (!gameRunning) return;
+                
+                const now = Date.now();
+                const effect = getBuffEffect();
+                
+                // Qiyinchilikni yangilash
+                updateDifficulty();
+                
+                // Otish
+                if (now - lastShot >= effect.shotInterval) {
+                    // Asosiy o'q
+                    bullets.push({
+                        x: player.x,
+                        y: player.y - player.height / 2 - 8,
+                        width: 4,
+                        height: 14,
+                        damage: Math.floor(1 * effect.damageMultiplier)
+                    });
+                    
+                    // Yoyilma o'qlar
+                    for (let i = 0; i < effect.spreadCount; i++) {
+                        const offset = (i + 1) * 12;
+                        bullets.push({
+                            x: player.x - offset,
+                            y: player.y - player.height / 2 - 5,
+                            width: 3,
+                            height: 12,
+                            damage: Math.floor(1 * effect.damageMultiplier)
+                        });
+                        bullets.push({
+                            x: player.x + offset,
+                            y: player.y - player.height / 2 - 5,
+                            width: 3,
+                            height: 12,
+                            damage: Math.floor(1 * effect.damageMultiplier)
+                        });
+                    }
+                    
+                    lastShot = now;
+                }
+
+                // Kometa yaratish
+                if (now - lastSpawn >= spawnInterval) {
+                    createTarget();
+                    lastSpawn = now;
+                }
+
+                // O'qlarni harakatlantirish
+                bullets = bullets.filter(b => {
+                    b.y -= bulletSpeed;
+                    return b.y + b.height > 0;
+                });
+
+                // Kometalarni yangilash
+                targets = targets.filter(target => {
+                    target.y += target.speed * effect.slowMultiplier;
+                    target.angle += target.rotationSpeed;
+                    if (target.hitAnimation > 0) target.hitAnimation -= 0.02;
+                    
+                    // KEMA BILAN TO'QNASHUV
+                    const dx = target.x - player.x;
+                    const dy = target.y - (player.y - player.height/2);
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    if (dist < target.radius + player.width/3) {
+                        gameRunning = false;
+                        showGameOver();
+                        return false;
+                    }
+                    
+                    // PASTGA TUSHIB KETGAN
+                    if (target.y - target.radius > canvas.height + 50) {
+                        missedComets++;
+                        missSpan.textContent = `${missedComets}/${maxMissed}`;
+                        createParticle(target.x, canvas.height-20, __('missed'), '#ff5555');
+                        
+                        if (missedComets >= maxMissed) {
+                            gameRunning = false;
+                            showGameOver();
+                        }
+                        return false;
+                    }
+                    
+                    return true;
+                });
+
+                // O'Q BILAN TO'QNASHUV
+                for (let i = bullets.length - 1; i >= 0; i--) {
+                    const bullet = bullets[i];
+                    
+                    for (let j = targets.length - 1; j >= 0; j--) {
+                        const target = targets[j];
+                        
+                        const bulletCenter = { x: bullet.x, y: bullet.y - bullet.height/2 };
+                        const dx = bulletCenter.x - target.x;
+                        const dy = bulletCenter.y - target.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        
+                        if (dist < target.radius + bullet.width/2) {
+                            bullets.splice(i, 1);
+                            
+                            // Zarar (shield himoyasi)
+                            let damage = bullet.damage;
+                            if (effect.shield) {
+                                damage = Math.ceil(damage / 2);
+                            }
+                            
+                            // Zirhli kometalarga kamroq zarar
+                            if (target.type === 'armored') {
+                                damage = Math.ceil(damage / 2);
+                            }
+                            
+                            target.health -= damage;
+                            target.hitAnimation = 0.3;
+                            
+                            createParticle(target.x, target.y - 10, `-${damage}`, '#ffaa00');
+                            
+                            if (target.health <= 0) {
+                                let baseScore = target.maxHealth * 10;
+                                if (target.isBuff) baseScore *= 2;
+                                if (target.type === 'armored') baseScore *= 3;
+                                if (target.type === 'fast') baseScore *= 2;
+                                
+                                score += baseScore;
+                                kills++;
+                                
+                                // Daraja oshishi (har 5 kometada)
+                                if (kills % 5 === 0) {
+                                    currentLevel++;
+                                    createParticle(player.x, player.y - 50, `${__('level')} ${currentLevel}`, '#6fcf97');
+                                }
+                                
+                                // Buff berish (9% ehtimol)
+                                if (target.isBuff) {
+                                    const buffKeys = Object.keys(buffIcons);
+                                    const randomBuff = buffKeys[Math.floor(Math.random() * buffKeys.length)];
+                                    addBuff(randomBuff);
+                                }
+                                
+                                targets.splice(j, 1);
+                                
+                                // Portlash effekti
+                                for (let p = 0; p < 5; p++) {
+                                    createParticle(
+                                        target.x + (Math.random()-0.5)*30,
+                                        target.y + (Math.random()-0.5)*30,
+                                        '💥',
+                                        '#ff5555'
+                                    );
+                                }
+                            }
+                            
+                            break;
+                        }
+                    }
+                }
+
+                // Touch harakati
+                if (touchActive) {
+                    player.x = Math.max(player.width/2, Math.min(canvas.width - player.width/2, touchX));
+                }
+                
+                // Particle yangilash
+                particles = particles.filter(p => {
+                    p.y += p.vy;
+                    p.life -= 0.02;
+                    return p.life > 0;
+                });
+                
+                // UI yangilash
+                scoreSpan.textContent = score;
+                levelSpan.textContent = currentLevel;
+                missSpan.textContent = `${missedComets}/${maxMissed}`;
+                
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('highScore', highScore);
+                    document.getElementById('highScore').textContent = highScore;
+                }
+            }
+
+            // ==================== CHIZISH ====================
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Fon yulduzlar
+                ctx.fillStyle = '#050a16';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                stars.forEach(s => {
+                    ctx.fillStyle = `rgba(150, 180, 240, ${s.alpha})`;
+                    ctx.fillRect(s.x, s.y, s.size, s.size);
+                    s.y += s.speed * 0.3;
+                    if (s.y > canvas.height) {
+                        s.y = 0;
+                        s.x = Math.random() * canvas.width;
+                    }
+                });
+
+                // Qalqon
+                if (buffStacks.shield > 0) {
+                    ctx.beginPath();
+                    ctx.arc(player.x, player.y - 8, player.width + 5, 0, 2*Math.PI);
+                    ctx.strokeStyle = '#4ad0ff';
+                    ctx.lineWidth = 3;
+                    ctx.setLineDash([8, 8]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                // Kema
+                ctx.save();
+                ctx.translate(player.x, player.y);
+                
+                const totalBuffs = Object.values(buffStacks).reduce((a,b) => a+b, 0);
+                if (totalBuffs > 20) {
+                    ctx.fillStyle = '#ffaa00';
+                    ctx.shadowColor = '#ffaa00';
+                } else if (totalBuffs > 10) {
+                    ctx.fillStyle = '#aa88ff';
+                    ctx.shadowColor = '#aa88ff';
+                } else {
+                    ctx.fillStyle = '#5f9eff';
+                    ctx.shadowColor = '#2f6eff';
+                }
+                
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.moveTo(0, -player.height/2);
+                ctx.lineTo(player.width/2, player.height/2);
+                ctx.lineTo(-player.width/2, player.height/2);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.fillStyle = '#ffaa00';
+                ctx.shadowColor = '#ffaa00';
+                ctx.beginPath();
+                ctx.moveTo(-player.width/4, player.height/2);
+                ctx.lineTo(0, player.height/2 + 18);
+                ctx.lineTo(player.width/4, player.height/2);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.restore();
+
+                // O'qlar
+                bullets.forEach(b => {
+                    ctx.fillStyle = '#ffffb0';
+                    ctx.shadowColor = '#ffff00';
+                    ctx.shadowBlur = 8;
+                    ctx.fillRect(b.x - b.width/2, b.y - b.height, b.width, b.height);
+                });
+
+                // Kometalar
+                targets.forEach(t => {
+                    ctx.save();
+                    ctx.translate(t.x, t.y);
+                    ctx.rotate(t.angle);
+                    
+                    const healthPercent = t.health / t.maxHealth;
+                    let color1, color2;
+                    
+                    if (t.isBuff) {
+                        color1 = '#c06aff';
+                        color2 = '#5f2a9f';
+                    } else {
+                        switch(t.type) {
+                            case 'armored':
+                                color1 = '#c0c0c0';
+                                color2 = '#808080';
+                                break;
+                            case 'fast':
+                                color1 = '#ff6b6b';
+                                color2 = '#8b0000';
+                                break;
+                            default:
+                                const red = Math.min(255, 200 + Math.floor(55 * (1 - healthPercent)));
+                                const green = Math.min(255, 100 + Math.floor(155 * healthPercent));
+                                color1 = `rgb(${red}, ${green}, 80)`;
+                                color2 = `rgb(${Math.floor(red*0.6)}, ${Math.floor(green*0.4)}, 40)`;
+                        }
+                    }
+                    
+                    if (t.hitAnimation > 0) {
+                        ctx.shadowColor = '#ffffff';
+                        ctx.shadowBlur = 20 * t.hitAnimation;
+                    }
+                    
+                    const gradient = ctx.createRadialGradient(-6, -6, 0, 0, 0, t.radius);
+                    gradient.addColorStop(0, color1);
+                    gradient.addColorStop(0.7, color2);
+                    gradient.addColorStop(1, '#1a0f1a');
+                    
+                    ctx.beginPath();
+                    ctx.arc(0, 0, t.radius, 0, 2*Math.PI);
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+                    
+                    ctx.shadowBlur = 0;
+                    ctx.font = 'bold ' + Math.floor(t.radius * 0.8) + 'px "Arial Black", sans-serif';
+                    ctx.fillStyle = '#ffffff';
+                    ctx.shadowColor = '#000';
+                    ctx.shadowBlur = 4;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(t.health, 0, 0);
+                    
+                    ctx.restore();
+                });
+
+                // Particle effektlar
+                particles.forEach(p => {
+                    ctx.globalAlpha = p.life;
+                    ctx.font = 'bold 20px Arial';
+                    ctx.fillStyle = p.color;
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = p.color;
+                    ctx.fillText(p.text, p.x, p.y);
+                });
+                ctx.globalAlpha = 1;
+                ctx.shadowBlur = 0;
+            }
+
+            // ==================== EVENTLAR ====================
+            document.getElementById('languageBtn').addEventListener('click', () => {
+                document.getElementById('languagePanel').style.display = 'grid';
+            });
+
+            document.getElementById('closeLang').addEventListener('click', () => {
+                document.getElementById('languagePanel').style.display = 'none';
+            });
+
+            document.querySelectorAll('.lang-btn[data-lang]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentLang = btn.dataset.lang;
+                    localStorage.setItem('selectedLang', currentLang);
+                    updateLanguageUI();
+                    document.getElementById('languagePanel').style.display = 'none';
+                });
+            });
+
+            document.getElementById('donateBtn').addEventListener('click', () => {
+                window.open('https://dalink.to/musoxon_', '_blank');
+            });
+
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                const scaleX = canvas.width / rect.width;
+                touchX = (touch.clientX - rect.left) * scaleX;
+                touchActive = true;
+            });
+
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                const scaleX = canvas.width / rect.width;
+                touchX = (touch.clientX - rect.left) * scaleX;
+                touchX = Math.max(player.width/2, Math.min(canvas.width - player.width/2, touchX));
+            });
+
+            canvas.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touchActive = false;
+            });
+
+            canvas.addEventListener('touchcancel', (e) => {
+                e.preventDefault();
+                touchActive = false;
+            });
+
+            document.getElementById('restartBtn').addEventListener('click', restart);
+            document.getElementById('restartBtn').addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                restart();
+            });
+
+            // Boshlash
+            updateLanguageUI();
+            updateBuffsDisplay();
+            document.getElementById('highScore').textContent = highScore;
+            
+            // O'yin sikli
+            function gameLoop() {
+                if (gameRunning) {
+                    update();
+                }
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+
+            gameLoop();
+        })();
+    </script>
+</body>
+</html>
