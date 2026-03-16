@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Kometa Raqam Jangi - Dynamic Difficulty</title>
+    <title>Kometa Raqam Jangi - Shield Fix</title>
     <style>
         * {
             margin: 0;
@@ -591,7 +591,7 @@
                 }
             };
 
-            // Til sozlamalari
+            // Til sozlamalari - sistema tiliga moslash
             function getSystemLanguage() {
                 const lang = navigator.language || navigator.userLanguage;
                 if (lang.startsWith('uz')) return 'uz';
@@ -604,9 +604,10 @@
                 if (lang.startsWith('es')) return 'es';
                 if (lang.startsWith('it')) return 'it';
                 if (lang.startsWith('de')) return 'de';
-                return 'uz';
+                return 'en'; // default english
             }
 
+            // localStorage dan tilni olish yoki sistema tilini ishlatish
             let currentLang = localStorage.getItem('selectedLang') || getSystemLanguage();
 
             function __(key) {
@@ -794,7 +795,8 @@
                         if (count >= MAX_BUFF_STACK) {
                             div.classList.add('max-stack');
                         }
-                        div.innerHTML = `<span>${buffIcons[key]}</span><span>${__(key) || key}</span><span class="count">${count}</span>`;
+                        // Buff nomlari tarjima qilinadi
+                        div.innerHTML = `<span>${buffIcons[key]}</span><span>${__(key)}</span><span class="count">${count}</span>`;
                         buffsContainer.appendChild(div);
                     }
                 }
@@ -840,19 +842,34 @@
                 document.getElementById('gameOver').style.display = 'none';
             }
 
-            // Til interfeysini yangilash
+            // Til interfeysini yangilash - asosiy nomlar o'zgarmaydi
             function updateLanguageUI() {
+                // Faqat tarjima qilinadigan elementlarni yangilaymiz
                 document.getElementById('scoreLabel').textContent = __('score');
                 document.getElementById('levelLabel').textContent = __('level');
                 document.getElementById('missLabel').textContent = __('miss');
                 document.getElementById('buffsLabel').textContent = __('buffs');
+                
+                // Game over matnlari
                 document.querySelector('#gameOver h2').textContent = __('gameOver');
+                document.querySelector('#gameOver p:nth-child(2)').innerHTML = `💥 ${__('kills')}: <span id="finalKills">${kills}</span>`;
+                document.querySelector('#gameOver p:nth-child(3)').innerHTML = `🔢 ${__('maxLevel')}: <span id="finalLevel">${currentLevel}</span>`;
+                document.querySelector('#gameOver p:nth-child(4)').innerHTML = `⭐ ${__('totalScore')}: <span id="finalScore">${score}</span>`;
+                document.querySelector('#gameOver p:nth-child(5)').innerHTML = `🏆 ${__('record')}: <span id="highScore">${highScore}</span>`;
+                
                 document.getElementById('restartBtn').textContent = __('restart');
                 document.getElementById('languageBtn').innerHTML = `🌐 ${__('language')}`;
                 document.getElementById('donateBtn').innerHTML = `☕ ${__('donate')}`;
                 document.getElementById('closeLang').textContent = __('close');
+                
+                // Bufflarni qayta chizish
                 updateBuffsDisplay();
             }
+
+            // Sahifa yuklanganda tilni sozlash
+            window.addEventListener('load', () => {
+                updateLanguageUI();
+            });
 
             // ==================== O'YIN ASOSIY SIKLI ====================
             function update() {
@@ -921,9 +938,21 @@
                     const dist = Math.sqrt(dx*dx + dy*dy);
                     
                     if (dist < target.radius + player.width/3) {
-                        gameRunning = false;
-                        showGameOver();
-                        return false;
+                        // --- HIMOYA (SHIELD) TEKSHIRUVI ---
+                        if (buffStacks.shield > 0) {
+                            // Himoyani bir marta ishlat va kamaytir
+                            buffStacks.shield--;
+                            updateBuffsDisplay(); // UI ni yangilash
+                            // Vizual effekt
+                            createParticle(target.x, target.y, '🛡️ BLOK', '#4ad0ff');
+                            // Kometani o'chir (to'qnashuv oldini olish)
+                            return false; // targetni o'chirish
+                        } else {
+                            // Himoya yo'q - o'yin tugaydi
+                            gameRunning = false;
+                            showGameOver();
+                            return false;
+                        }
                     }
                     
                     // PASTGA TUSHIB KETGAN
@@ -957,7 +986,7 @@
                         if (dist < target.radius + bullet.width/2) {
                             bullets.splice(i, 1);
                             
-                            // Zarar (shield himoyasi)
+                            // Zarar (shield himoyasi - doimiy yarim zarar, stack iste'mol qilinmaydi)
                             let damage = bullet.damage;
                             if (effect.shield) {
                                 damage = Math.ceil(damage / 2);
@@ -1055,7 +1084,7 @@
                     }
                 });
 
-                // Qalqon
+                // Qalqon (shield active bo'lsa)
                 if (buffStacks.shield > 0) {
                     ctx.beginPath();
                     ctx.arc(player.x, player.y - 8, player.width + 5, 0, 2*Math.PI);
@@ -1235,7 +1264,7 @@
                 restart();
             });
 
-            // Boshlash
+            // Boshlang'ich til sozlamalari
             updateLanguageUI();
             updateBuffsDisplay();
             document.getElementById('highScore').textContent = highScore;
