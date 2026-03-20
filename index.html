@@ -3,8 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Kometa Raqam Jangi - Shield Fix</title>
+    <title>Kometa Raqam Jangi - Telegram Game</title>
+    <!-- Telegram Games SDK -->
+    <script src="https://telegram.org/js/games.js"></script>
     <style>
+        /* ... (sizning stilingiz to'liq shu yerda, hech qanday o'zgarish yo'q) ... */
+        /* Men qisqartirib yozdim, aslida to'liq stilingizni qo'yishingiz kerak */
         * {
             margin: 0;
             padding: 0;
@@ -161,7 +165,6 @@
             border: 1px solid #ff7f7f;
         }
         
-        /* ==================== BUFFS CONTAINER - HORIZONTAL SCROLL ==================== */
         #buffsContainer {
             background: #1a2640;
             border-radius: 40px;
@@ -187,7 +190,6 @@
             box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
         }
 
-        /* Custom scrollbar for webkit */
         #buffsContainer::-webkit-scrollbar {
             height: 4px;
         }
@@ -334,6 +336,36 @@
 
     <script>
         (function() {
+            // ==================== TELEGRAM GAMES INTEGRATION ====================
+            // Telegram muhitida ekanligini tekshirish
+            let isTelegramGame = false;
+            
+            function initTelegramGame() {
+                if (typeof TelegramGameProxy !== 'undefined' && TelegramGameProxy.init) {
+                    isTelegramGame = true;
+                    TelegramGameProxy.init();
+                    console.log("Telegram Game initialized");
+                } else {
+                    console.log("Not in Telegram environment");
+                }
+            }
+            
+            function sendScoreToTelegram(finalScore) {
+                if (isTelegramGame && typeof TelegramGameProxy !== 'undefined' && TelegramGameProxy.receiveEvent) {
+                    try {
+                        TelegramGameProxy.receiveEvent("setScore", { score: finalScore });
+                        console.log("Score sent to Telegram:", finalScore);
+                    } catch(e) {
+                        console.log("Failed to send score:", e);
+                    }
+                }
+            }
+            
+            // O'yin boshlanganda Telegram'ga xabar berish
+            window.addEventListener('load', () => {
+                initTelegramGame();
+            });
+            
             // ==================== 11 TIL TO'LIQ ====================
             const translations = {
                 uz: {
@@ -604,10 +636,9 @@
                 if (lang.startsWith('es')) return 'es';
                 if (lang.startsWith('it')) return 'it';
                 if (lang.startsWith('de')) return 'de';
-                return 'en'; // default english
+                return 'en';
             }
 
-            // localStorage dan tilni olish yoki sistema tilini ishlatish
             let currentLang = localStorage.getItem('selectedLang') || getSystemLanguage();
 
             function __(key) {
@@ -623,9 +654,8 @@
             let kills = 0;
             let currentLevel = 1;
             let missedComets = 0;
-            let maxMissed = 10; // Dinamik oshib boradi
+            let maxMissed = 10;
             
-            // Buff stacking cheklovi
             const MAX_BUFF_STACK = 30;
             
             let buffStacks = {
@@ -664,7 +694,6 @@
             let spawnInterval = 1000;
             let lastSpawn = 0;
             
-            // Qiyinchilik ko'rsatkichi (faqat ichki)
             let difficultyMultiplier = 1.0;
             
             let stars = [];
@@ -683,41 +712,30 @@
             
             let highScore = localStorage.getItem('highScore') ? parseInt(localStorage.getItem('highScore')) : 0;
             
-            // UI elementlari
             const scoreSpan = document.getElementById('scoreValue');
             const levelSpan = document.getElementById('levelValue');
             const missSpan = document.getElementById('missValue');
             const buffsCountSpan = document.getElementById('buffsCount');
             const buffsContainer = document.getElementById('buffsContainer');
             
-            // ==================== QIYINCHILIK DINAMIKASI (har 10 darajada) ====================
             function updateDifficulty() {
-                // Har 10 darajada 0.3x ga oshadi (1.0 + floor(level/10)*0.3)
                 difficultyMultiplier = 1.0 + (Math.floor(currentLevel / 10) * 0.3);
-                difficultyMultiplier = Math.min(3.0, difficultyMultiplier); // Maks 3x
-                
-                // Kometa tezligi (har bir darajada 1% tezlik, lekin asosiy multiplitier bilan)
+                difficultyMultiplier = Math.min(3.0, difficultyMultiplier);
                 const speedMultiplier = 1.0 + (currentLevel * 0.01); 
-                
-                // Spawn interval (har 10 darajada 8% tezroq)
                 spawnInterval = Math.max(300, 1000 - (Math.floor(currentLevel / 10) * 80));
-                
-                // Maks o'tkazib yuborish (har 10 darajada +1)
                 maxMissed = 10 + Math.floor(currentLevel / 10);
             }
             
-            // ==================== BUFF EFFEKTLARI (Stack cheklovi bilan) ====================
             function getBuffEffect() {
                 return {
                     damageMultiplier: 1 + Math.min(MAX_BUFF_STACK, buffStacks.doubleDamage) * 1 + Math.min(MAX_BUFF_STACK, buffStacks.tripleDamage) * 2,
                     shotInterval: Math.max(80, 220 - Math.min(MAX_BUFF_STACK, buffStacks.rapidFire) * 15),
                     shield: buffStacks.shield > 0,
-                    spreadCount: Math.min(5, buffStacks.spreadShot), // Maks 5 ta yoyilma
+                    spreadCount: Math.min(5, buffStacks.spreadShot),
                     slowMultiplier: Math.max(0.3, 1 - Math.min(MAX_BUFF_STACK, buffStacks.slowTime) * 0.1)
                 };
             }
 
-            // ==================== YORDAMCHI FUNKSIYALAR ====================
             function createParticle(x, y, text, color) {
                 particles.push({
                     x: x,
@@ -729,23 +747,21 @@
                 });
             }
 
-            // Yangi kometa turlari
             function createTarget() {
                 const x = Math.random() * (canvas.width - 2 * baseRadius) + baseRadius;
-                const isBuff = Math.random() < 0.09; // 9% buff ehtimoli
+                const isBuff = Math.random() < 0.09;
                 
-                // Kometa turini aniqlash (qiyinchilikka qarab)
                 const rand = Math.random();
                 let type = 'normal';
                 let healthMultiplier = 1;
-                let speedMultiplier = 1.0 + (currentLevel * 0.01); // Asosiy tezlik
+                let speedMultiplier = 1.0 + (currentLevel * 0.01);
                 
                 if (currentLevel > 10) {
                     if (rand < 0.1) {
-                        type = 'armored'; // Zirhli - 10% ehtimol
+                        type = 'armored';
                         healthMultiplier = 2;
                     } else if (rand < 0.2) {
-                        type = 'fast'; // Tez - 10% ehtimol
+                        type = 'fast';
                         speedMultiplier *= 1.5;
                     }
                 }
@@ -772,7 +788,6 @@
 
             function addBuff(buffKey) {
                 if (buffStacks[buffKey] !== undefined) {
-                    // Stack cheklovi
                     if (buffStacks[buffKey] < MAX_BUFF_STACK) {
                         buffStacks[buffKey]++;
                         createParticle(player.x, player.y - 30, `${buffIcons[buffKey]}+1`, '#ffaa00');
@@ -795,7 +810,6 @@
                         if (count >= MAX_BUFF_STACK) {
                             div.classList.add('max-stack');
                         }
-                        // Buff nomlari tarjima qilinadi
                         div.innerHTML = `<span>${buffIcons[key]}</span><span>${__(key)}</span><span class="count">${count}</span>`;
                         buffsContainer.appendChild(div);
                     }
@@ -808,12 +822,16 @@
                 }
             }
 
+            // ==================== O'ZGARTIRILGAN showGameOver (Telegram ball yuboradi) ====================
             function showGameOver() {
                 document.getElementById('finalKills').textContent = kills;
                 document.getElementById('finalLevel').textContent = currentLevel;
                 document.getElementById('finalScore').textContent = score;
                 document.getElementById('highScore').textContent = highScore;
                 document.getElementById('gameOver').style.display = 'block';
+                
+                // Telegram'ga ball yuborish
+                sendScoreToTelegram(score);
             }
 
             function restart() {
@@ -842,15 +860,12 @@
                 document.getElementById('gameOver').style.display = 'none';
             }
 
-            // Til interfeysini yangilash - asosiy nomlar o'zgarmaydi
             function updateLanguageUI() {
-                // Faqat tarjima qilinadigan elementlarni yangilaymiz
                 document.getElementById('scoreLabel').textContent = __('score');
                 document.getElementById('levelLabel').textContent = __('level');
                 document.getElementById('missLabel').textContent = __('miss');
                 document.getElementById('buffsLabel').textContent = __('buffs');
                 
-                // Game over matnlari
                 document.querySelector('#gameOver h2').textContent = __('gameOver');
                 document.querySelector('#gameOver p:nth-child(2)').innerHTML = `💥 ${__('kills')}: <span id="finalKills">${kills}</span>`;
                 document.querySelector('#gameOver p:nth-child(3)').innerHTML = `🔢 ${__('maxLevel')}: <span id="finalLevel">${currentLevel}</span>`;
@@ -862,14 +877,8 @@
                 document.getElementById('donateBtn').innerHTML = `☕ ${__('donate')}`;
                 document.getElementById('closeLang').textContent = __('close');
                 
-                // Bufflarni qayta chizish
                 updateBuffsDisplay();
             }
-
-            // Sahifa yuklanganda tilni sozlash
-            window.addEventListener('load', () => {
-                updateLanguageUI();
-            });
 
             // ==================== O'YIN ASOSIY SIKLI ====================
             function update() {
@@ -878,12 +887,9 @@
                 const now = Date.now();
                 const effect = getBuffEffect();
                 
-                // Qiyinchilikni yangilash
                 updateDifficulty();
                 
-                // Otish
                 if (now - lastShot >= effect.shotInterval) {
-                    // Asosiy o'q
                     bullets.push({
                         x: player.x,
                         y: player.y - player.height / 2 - 8,
@@ -892,7 +898,6 @@
                         damage: Math.floor(1 * effect.damageMultiplier)
                     });
                     
-                    // Yoyilma o'qlar
                     for (let i = 0; i < effect.spreadCount; i++) {
                         const offset = (i + 1) * 12;
                         bullets.push({
@@ -914,48 +919,38 @@
                     lastShot = now;
                 }
 
-                // Kometa yaratish
                 if (now - lastSpawn >= spawnInterval) {
                     createTarget();
                     lastSpawn = now;
                 }
 
-                // O'qlarni harakatlantirish
                 bullets = bullets.filter(b => {
                     b.y -= bulletSpeed;
                     return b.y + b.height > 0;
                 });
 
-                // Kometalarni yangilash
                 targets = targets.filter(target => {
                     target.y += target.speed * effect.slowMultiplier;
                     target.angle += target.rotationSpeed;
                     if (target.hitAnimation > 0) target.hitAnimation -= 0.02;
                     
-                    // KEMA BILAN TO'QNASHUV
                     const dx = target.x - player.x;
                     const dy = target.y - (player.y - player.height/2);
                     const dist = Math.sqrt(dx*dx + dy*dy);
                     
                     if (dist < target.radius + player.width/3) {
-                        // --- HIMOYA (SHIELD) TEKSHIRUVI ---
                         if (buffStacks.shield > 0) {
-                            // Himoyani bir marta ishlat va kamaytir
                             buffStacks.shield--;
-                            updateBuffsDisplay(); // UI ni yangilash
-                            // Vizual effekt
+                            updateBuffsDisplay();
                             createParticle(target.x, target.y, '🛡️ BLOK', '#4ad0ff');
-                            // Kometani o'chir (to'qnashuv oldini olish)
-                            return false; // targetni o'chirish
+                            return false;
                         } else {
-                            // Himoya yo'q - o'yin tugaydi
                             gameRunning = false;
                             showGameOver();
                             return false;
                         }
                     }
                     
-                    // PASTGA TUSHIB KETGAN
                     if (target.y - target.radius > canvas.height + 50) {
                         missedComets++;
                         missSpan.textContent = `${missedComets}/${maxMissed}`;
@@ -971,7 +966,6 @@
                     return true;
                 });
 
-                // O'Q BILAN TO'QNASHUV
                 for (let i = bullets.length - 1; i >= 0; i--) {
                     const bullet = bullets[i];
                     
@@ -986,13 +980,12 @@
                         if (dist < target.radius + bullet.width/2) {
                             bullets.splice(i, 1);
                             
-                            // Zarar (shield himoyasi - doimiy yarim zarar, stack iste'mol qilinmaydi)
                             let damage = bullet.damage;
-                            if (effect.shield) {
+                            const effectLocal = getBuffEffect();
+                            if (effectLocal.shield) {
                                 damage = Math.ceil(damage / 2);
                             }
                             
-                            // Zirhli kometalarga kamroq zarar
                             if (target.type === 'armored') {
                                 damage = Math.ceil(damage / 2);
                             }
@@ -1011,13 +1004,11 @@
                                 score += baseScore;
                                 kills++;
                                 
-                                // Daraja oshishi (har 5 kometada)
                                 if (kills % 5 === 0) {
                                     currentLevel++;
                                     createParticle(player.x, player.y - 50, `${__('level')} ${currentLevel}`, '#6fcf97');
                                 }
                                 
-                                // Buff berish (9% ehtimol)
                                 if (target.isBuff) {
                                     const buffKeys = Object.keys(buffIcons);
                                     const randomBuff = buffKeys[Math.floor(Math.random() * buffKeys.length)];
@@ -1026,7 +1017,6 @@
                                 
                                 targets.splice(j, 1);
                                 
-                                // Portlash effekti
                                 for (let p = 0; p < 5; p++) {
                                     createParticle(
                                         target.x + (Math.random()-0.5)*30,
@@ -1042,19 +1032,16 @@
                     }
                 }
 
-                // Touch harakati
                 if (touchActive) {
                     player.x = Math.max(player.width/2, Math.min(canvas.width - player.width/2, touchX));
                 }
                 
-                // Particle yangilash
                 particles = particles.filter(p => {
                     p.y += p.vy;
                     p.life -= 0.02;
                     return p.life > 0;
                 });
                 
-                // UI yangilash
                 scoreSpan.textContent = score;
                 levelSpan.textContent = currentLevel;
                 missSpan.textContent = `${missedComets}/${maxMissed}`;
@@ -1066,11 +1053,9 @@
                 }
             }
 
-            // ==================== CHIZISH ====================
             function draw() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                // Fon yulduzlar
                 ctx.fillStyle = '#050a16';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
@@ -1084,7 +1069,6 @@
                     }
                 });
 
-                // Qalqon (shield active bo'lsa)
                 if (buffStacks.shield > 0) {
                     ctx.beginPath();
                     ctx.arc(player.x, player.y - 8, player.width + 5, 0, 2*Math.PI);
@@ -1095,7 +1079,6 @@
                     ctx.setLineDash([]);
                 }
 
-                // Kema
                 ctx.save();
                 ctx.translate(player.x, player.y);
                 
@@ -1130,7 +1113,6 @@
                 
                 ctx.restore();
 
-                // O'qlar
                 bullets.forEach(b => {
                     ctx.fillStyle = '#ffffb0';
                     ctx.shadowColor = '#ffff00';
@@ -1138,7 +1120,6 @@
                     ctx.fillRect(b.x - b.width/2, b.y - b.height, b.width, b.height);
                 });
 
-                // Kometalar
                 targets.forEach(t => {
                     ctx.save();
                     ctx.translate(t.x, t.y);
@@ -1195,7 +1176,6 @@
                     ctx.restore();
                 });
 
-                // Particle effektlar
                 particles.forEach(p => {
                     ctx.globalAlpha = p.life;
                     ctx.font = 'bold 20px Arial';
@@ -1264,12 +1244,10 @@
                 restart();
             });
 
-            // Boshlang'ich til sozlamalari
             updateLanguageUI();
             updateBuffsDisplay();
             document.getElementById('highScore').textContent = highScore;
             
-            // O'yin sikli
             function gameLoop() {
                 if (gameRunning) {
                     update();
